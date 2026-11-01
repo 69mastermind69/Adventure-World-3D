@@ -14,35 +14,64 @@ permissions:
 jobs:
   build-android:
     name: Build Android APK
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
 
     container:
       image: barichello/godot-ci:4.3
 
     steps:
-      - name: Download Game Source
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Godot
+      - name: Configure Android Export
+        shell: bash
         run: |
-          mkdir -p ~/.local/share/godot/export_templates/
-          mkdir -p ~/.config/
+          mkdir -p "$HOME/.config/godot"
+          mkdir -p "$HOME/.local/share/godot/export_templates"
 
-          mv /root/.config/godot ~/.config/godot
+          cp -a /root/.config/godot/. \
+            "$HOME/.config/godot/" || true
 
-          mv /root/.local/share/godot/export_templates/4.3.stable ~/.local/share/godot/export_templates/4.3.stable
+          cp -a /root/.local/share/godot/export_templates/4.3.stable \
+            "$HOME/.local/share/godot/export_templates/" 
 
-      - name: Build Android APK
+          keytool -genkeypair \
+            -keystore "$HOME/debug.keystore" \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+          cat > "$HOME/.config/godot/editor_settings-4.3.tres" <<'EOF'
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/java_sdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"
+          export/android/android_sdk_path = "/usr/lib/android-sdk"
+          export/android/debug_keystore = "/github/home/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          EOF
+
+      - name: Import Game Project
+        run: |
+          godot --headless --editor --path . --quit
+
+      - name: Export Android APK
         run: |
           mkdir -p build
 
-          godot --headless --verbose --path . \
-          --export-debug "Android" \
-          build/AdventureWorld3D.apk
+          godot --headless --path . \
+            --export-debug "Android" \
+            build/AdventureWorld3D.apk
+
+          test -s build/AdventureWorld3D.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
-
         with:
           name: Adventure-World-3D-APK
           path: build/AdventureWorld3D.apk
