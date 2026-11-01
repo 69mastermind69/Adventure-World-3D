@@ -1,0 +1,49 @@
+
+name: Build Adventure World 3D APK
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-24.04
+
+    container:
+      image: barichello/godot-ci:4.3
+
+    steps:
+      - name: Download Game Source
+        uses: actions/checkout@v4
+
+      - name: Setup Godot
+        run: |
+          mkdir -p ~/.local/share/godot/export_templates/
+          mkdir -p ~/.config/
+
+          mv /root/.config/godot ~/.config/godot
+
+          mv /root/.local/share/godot/export_templates/4.3.stable ~/.local/share/godot/export_templates/4.3.stable
+
+      - name: Build Android APK
+        run: |
+          mkdir -p build
+
+          godot --headless --verbose --path . \
+          --export-debug "Android" \
+          build/AdventureWorld3D.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+
+        with:
+          name: Adventure-World-3D-APK
+          path: build/AdventureWorld3D.apk
+          if-no-files-found: error
